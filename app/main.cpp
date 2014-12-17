@@ -2,12 +2,15 @@
 
 #include "../WLMC/include/WLMC.h"
 
+#include "../../../Dropbox/kMC_dag/find_energy_function/statedensity.h"
+
 using namespace WLMC;
 using namespace arma;
 using namespace std;
 
 class Quasi2DSystem : public System
 {
+    const uint m_L;
     const uint m_sMax;
 
     ivec m_heights;
@@ -18,7 +21,8 @@ class Quasi2DSystem : public System
 public:
     Quasi2DSystem(const uint L, const uint sMax) :
         //nParticles, NX, NY, NZ, samplesPerCheck, flatnesscriterion, adaptive window stuff.., rng
-        System(L, L, 1, 1, 10000, 0.9, 100, 100, 0.1, -1000000000, ".", [] () {return as_scalar(randu(1,1));}, false),
+        System(L, L, 1, 1, 20000, 0.85, 50, 100, 0.1, -1000000000, ".", [] () {return as_scalar(randu(1,1));}, false, false),
+        m_L(L),
         m_sMax(sMax),
         m_heights(L, fill::zeros),
         m_trialHeights(L, fill::zeros),
@@ -182,30 +186,46 @@ public:
         m_presetHeights.set_size(m_heights.size(), numberOfPresets(nbins));
     }
 
+    void shiftDOS(vec &logDOS)
+    {
+        logDOS += log(m_L*(m_L-1)) - logDOS(1);
+    }
+
 };
 
 int main()
 {
+
     auto seed = time(NULL);
-//    auto seed = 1413890649;
+//        auto seed = 1418837610;
     cout << seed << endl;
     srand(seed);
 
     uint L = 10;
-//    uint sMax = 17*m_heights.size();
-    uint sMax = 50;
+    //    uint sMax = 17*m_heights.size();
+    uint sMax = 100;
+
+    EspensAwesomeFormula<uint> f(L, sMax);
+    f.initialize();
+    vec aws(sMax+1);
+
+    for (uint s = 0; s <= sMax; ++s)
+    {
+        aws(s) = f.logMT<double>(s);
+    }
+
+    aws.save("awesome.arma");
+
     Quasi2DSystem system(L, sMax);
 
-    uint nbins = 250;
+    uint nbins = 100;
     bool adaptiveWindows = false;
 
     double fInit = 1;
-    double fEnd = 0.001;
+    double fEnd = 0.00001;
 
     system.init(nbins);
-    const Window& win = system.execute(nbins, adaptiveWindows, fInit, fEnd);
-
-    cout << exp(win.logDOS(0)) << endl;
+    system.execute(nbins, adaptiveWindows, fInit, fEnd);
 
     return 0;
 }
